@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Wallet } from "lucide-react";
+import { Wallet, LogOut } from "lucide-react";
 import { useWallet } from "@/hooks/wallet/useWallet";
 import { useAppKitAccount } from "@reown/appkit/react";
 import blockies from "ethereum-blockies";
@@ -10,7 +10,7 @@ import Image from "next/image";
 
 const ConnectWallet = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const { openConnectModal } = useWallet();
+  const { openConnectModal, disconnect } = useWallet();
   const { address, isConnected } = useAppKitAccount();
 
   const handleConnect = async () => {
@@ -21,6 +21,16 @@ const ConnectWallet = () => {
       console.error("Failed to connect wallet:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnect();
+      // Sayfayı yenile
+      window.location.reload();
+    } catch (error) {
+      console.error("Failed to disconnect wallet:", error);
     }
   };
 
@@ -66,10 +76,11 @@ const ConnectWallet = () => {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.2 }}
+            className="flex items-center gap-2"
           >
             <Button
               variant="secondary"
-              className="flex cursor-pointer items-center text-lg sm:text-sm sm:px-4 sm:py-3 py-6  gap-2"
+              className="flex cursor-pointer items-center text-lg sm:text-sm sm:px-4 sm:py-3 py-6 gap-2"
               onClick={() => openConnectModal()}
             >
               <Image
@@ -80,6 +91,14 @@ const ConnectWallet = () => {
                 height={20}
               />
               {address && formatAddress(address)}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDisconnect}
+              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+            >
+              <LogOut className="w-4 h-4" />
             </Button>
           </motion.div>
         )}
