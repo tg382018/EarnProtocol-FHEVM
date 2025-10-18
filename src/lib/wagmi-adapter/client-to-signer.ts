@@ -17,8 +17,13 @@ export function clientToSigner(client: Client<Transport, Chain, Account>) {
 /** Action to convert a viem Wallet Client to an ethers.js Signer. */
 export async function getEthersSigner(
   config: Config,
-  { chainId }: { chainId?: number } = {},
+  { chainId }: { chainId?: number } = {}
 ) {
-  const client = await getConnectorClient(config, { chainId });
-  return clientToSigner(client);
+  try {
+    const client = await getConnectorClient(config, { chainId });
+    return clientToSigner(client);
+  } catch (error) {
+    console.error("Failed to get connector client:", error);
+    throw error;
+  }
 }
