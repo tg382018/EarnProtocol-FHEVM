@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ethers } from "ethers";
-import { useReadContract, useWriteContract } from "wagmi";
+import {
+  useReadContract,
+  useWriteContract,
+  useSendTransaction,
+  useAccount,
+} from "wagmi";
 import { NEXT_PUBLIC_CONTRACT_ADDRESS } from "@/config/env";
 import { earnProtocolAbi } from "@/abi/earnProtocolAbi";
 
@@ -58,40 +63,69 @@ export const useEarnProtocol = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Wagmi hooks
-  const { writeContract } = useWriteContract();
+  const { writeContract, writeContractAsync, isPending, error } =
+    useWriteContract();
+  const {
+    sendTransaction,
+    isPending: isSendPending,
+    error: sendError,
+  } = useSendTransaction();
 
   // -------------
   // Helpers
   // -------------
   const hasContract = Boolean(contractAddress && contractAbi);
 
+  // Get connected wallet address
+  const { address: userAddress } = useAccount();
+
   // Read user data
   const userDataResult = useReadContract({
     address: contractAddress as `0x${string}` | undefined,
     abi: contractAbi,
     functionName: "getUserData" as const,
-    args: [contractAddress], // This should be the user's address
+    args: [userAddress || "0x0000000000000000000000000000000000000000"], // Use connected wallet address
     query: {
-      enabled: Boolean(hasContract),
+      enabled: Boolean(hasContract && userAddress),
       refetchOnWindowFocus: false,
     },
   });
 
   const userData = useMemo(() => {
+    console.log("Debug - getUserData result:", {
+      data: userDataResult.data,
+      error: userDataResult.error,
+      isLoading: userDataResult.isLoading,
+      userAddress,
+    });
+
     if (!userDataResult.data) return null;
     const [stakedAmount, lastClaimTime, totalEarned, hasStaked] =
       userDataResult.data as [bigint, bigint, bigint, boolean];
+
+    console.log("Debug - parsed userData:", {
+      stakedAmount: stakedAmount.toString(),
+      lastClaimTime: lastClaimTime.toString(),
+      totalEarned: totalEarned.toString(),
+      hasStaked,
+    });
+
     return { stakedAmount, lastClaimTime, totalEarned, hasStaked };
-  }, [userDataResult.data]);
+  }, [
+    userDataResult.data,
+    userDataResult.error,
+    userDataResult.isLoading,
+    userAddress,
+  ]);
 
   // Check if user can claim
   const canClaimResult = useReadContract({
     address: contractAddress as `0x${string}` | undefined,
     abi: contractAbi,
     functionName: "canClaim" as const,
-    args: [contractAddress], // This should be the user's address
+    args: [userAddress || "0x0000000000000000000000000000000000000000"], // Use connected wallet address
     query: {
-      enabled: Boolean(hasContract),
+      enabled: Boolean(hasContract && userAddress),
       refetchOnWindowFocus: false,
     },
   });
@@ -240,40 +274,49 @@ export const useEarnProtocol = () => {
 
   const stakeWithEncryptedScore = useCallback(
     async (userData: UserData, stakeAmount: string) => {
-      if (isProcessing || !canStake) return;
+      if (isProcessing) return;
       setIsProcessing(true);
       setMessage("Staking with encrypted score...");
+
+      console.log("Starting stake transaction...", {
+        contractAddress,
+        stakeAmount,
+        userData: {
+          walletAge: userData.walletAge,
+          transactionCount: userData.transactionCount,
+          ethBalance: userData.ethBalance,
+          ethBalanceScaled: Math.floor(userData.ethBalance * 1e6),
+          totalGasUsed: userData.totalGasUsed,
+          averageTransactionValue: userData.averageTransactionValue,
+          averageTransactionValueScaled: Math.floor(
+            userData.averageTransactionValue * 1e6
+          ),
+          uniqueContracts: userData.uniqueContracts,
+        },
+      });
+
       try {
-        // Real contract call with ETH value
-        const tx = await writeContract({
+        // Use simple stake function
+        const txHash = await writeContractAsync({
           address: contractAddress as `0x${string}`,
           abi: contractAbi,
-          functionName: "stakeWithEncryptedScore",
-          args: [
-            // Mock encrypted data (in real FHEVM, this would be encrypted)
-            ethers.zeroPadValue("0x1", 32), // walletAge
-            ethers.zeroPadValue("0x2", 32), // transactionCount
-            ethers.zeroPadValue("0x3", 32), // ethBalance
-            ethers.zeroPadValue("0x4", 32), // totalGasUsed
-            ethers.zeroPadValue("0x5", 32), // averageTxValue
-            ethers.zeroPadValue("0x6", 32), // uniqueContracts
-            "0x", // inputProof (empty for now)
-          ],
-          value: ethers.parseEther(stakeAmount), // Send ETH
+          functionName: "stake",
+          args: [],
+          value: ethers.parseEther(stakeAmount),
         });
 
+        console.log("Transaction sent! Hash:", txHash);
         setMessage("Transaction sent! Waiting for confirmation...");
-        await tx.wait();
-        setMessage("Staking completed!");
-      } catch (e) {
+      } catch (writeError) {
+        console.error("Write contract error:", writeError);
         setMessage(
-          `Staking failed: ${e instanceof Error ? e.message : String(e)}`
+          `Staking failed: ${writeError instanceof Error ? writeError.message : String(writeError)}`
         );
-      } finally {
         setIsProcessing(false);
+        throw writeError; // Re-throw to catch in page.tsx
       }
     },
-    [isProcessing, canStake, writeContract, contractAddress, contractAbi]
+    [isProcessing, writeContractAsync, contractAddress, contractAbi]
   );
 
   const claimRewards = useCallback(

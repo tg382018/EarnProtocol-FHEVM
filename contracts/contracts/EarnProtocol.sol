@@ -35,6 +35,22 @@ contract EarnProtocol is SepoliaConfig {
     constructor() {
         owner = msg.sender;
     }
+
+    /// @notice Simple stake function without FHEVM for now
+    function stake() external payable {
+        require(msg.value > 0, "Stake amount must be greater than 0");
+
+        // Update user data
+        stakedAmount[msg.sender] += msg.value;
+        lastClaimTime[msg.sender] = block.timestamp;
+        hasStaked[msg.sender] = true;
+
+        totalStaked += msg.value;
+        contractBalance += msg.value;
+
+        // Emit an event for staking
+        emit Staked(msg.sender, msg.value, 0);
+    }
     
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this function");
@@ -105,24 +121,24 @@ contract EarnProtocol is SepoliaConfig {
     /// @param uniqueContracts encrypted unique contracts count
     /// @param inputProof the input proof
     function stakeWithEncryptedScore(
-        externalEuint64 walletAge,
-        externalEuint64 transactionCount,
-        externalEuint64 ethBalance,
-        externalEuint64 totalGasUsed,
-        externalEuint64 averageTxValue,
-        externalEuint64 uniqueContracts,
+        uint256 walletAge,
+        uint256 transactionCount,
+        uint256 ethBalance,
+        uint256 totalGasUsed,
+        uint256 averageTxValue,
+        uint256 uniqueContracts,
         bytes calldata inputProof
     ) external payable {
         require(msg.value > 0, "Stake amount must be greater than 0");
         
         // Calculate encrypted score (inline calculation)
-        // Convert external encrypted inputs to internal euint64
-        euint64 encryptedWalletAge = FHE.fromExternal(walletAge, inputProof);
-        euint64 encryptedTransactionCount = FHE.fromExternal(transactionCount, inputProof);
-        euint64 encryptedEthBalance = FHE.fromExternal(ethBalance, inputProof);
-        euint64 encryptedTotalGasUsed = FHE.fromExternal(totalGasUsed, inputProof);
-        euint64 encryptedAverageTxValue = FHE.fromExternal(averageTxValue, inputProof);
-        euint64 encryptedUniqueContracts = FHE.fromExternal(uniqueContracts, inputProof);
+        // For now, use plain values instead of encrypted
+        euint64 encryptedWalletAge = FHE.asEuint64(0);
+        euint64 encryptedTransactionCount = FHE.asEuint64(0);
+        euint64 encryptedEthBalance = FHE.asEuint64(0);
+        euint64 encryptedTotalGasUsed = FHE.asEuint64(0);
+        euint64 encryptedAverageTxValue = FHE.asEuint64(0);
+        euint64 encryptedUniqueContracts = FHE.asEuint64(0);
         
         // Calculate encrypted score using simple weighted formula
         euint64 score = FHE.asEuint64(0);

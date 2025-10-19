@@ -5,9 +5,10 @@ import { useFhevm } from "@/providers/FhevmProvider";
 interface UserData {
   walletAge: number;
   transactionCount: number;
-  totalVolume: number;
-  nftHoldings: number;
-  defiInteractions: number;
+  ethBalance: number;
+  totalGasUsed: number;
+  averageTransactionValue: number;
+  uniqueContracts: number;
 }
 
 interface EncryptedScore {
@@ -83,9 +84,10 @@ export const useFHEVMScoring = () => {
         .createEncryptedInput(contractAddress, userAddress)
         .add64(BigInt(userData.walletAge))
         .add64(BigInt(userData.transactionCount))
-        .add64(BigInt(userData.totalVolume))
-        .add64(BigInt(userData.nftHoldings))
-        .add64(BigInt(userData.defiInteractions))
+        .add64(BigInt(Math.floor(userData.ethBalance * 1e6))) // Scale ETH to 1e6
+        .add64(BigInt(userData.totalGasUsed))
+        .add64(BigInt(Math.floor(userData.averageTransactionValue * 1e6))) // Scale ETH to 1e6
+        .add64(BigInt(userData.uniqueContracts))
         .encrypt();
 
       // Calculate public score based on key metrics

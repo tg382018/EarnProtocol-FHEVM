@@ -29,6 +29,7 @@ export interface EarnProtocolInterface extends Interface {
       | "calculateEncryptedScore"
       | "calculateInterestRate"
       | "calculatePlainScore"
+      | "calculateScoreWithFHE"
       | "canClaim"
       | "claimRewards"
       | "contractBalance"
@@ -40,6 +41,7 @@ export interface EarnProtocolInterface extends Interface {
       | "lastClaimTime"
       | "owner"
       | "protocolId"
+      | "stake"
       | "stakeWithEncryptedScore"
       | "stakedAmount"
       | "totalEarned"
@@ -86,6 +88,18 @@ export interface EarnProtocolInterface extends Interface {
     ]
   ): string;
   encodeFunctionData(
+    functionFragment: "calculateScoreWithFHE",
+    values: [
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BytesLike
+    ]
+  ): string;
+  encodeFunctionData(
     functionFragment: "canClaim",
     values: [AddressLike]
   ): string;
@@ -126,15 +140,16 @@ export interface EarnProtocolInterface extends Interface {
     functionFragment: "protocolId",
     values?: undefined
   ): string;
+  encodeFunctionData(functionFragment: "stake", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "stakeWithEncryptedScore",
     values: [
-      BytesLike,
-      BytesLike,
-      BytesLike,
-      BytesLike,
-      BytesLike,
-      BytesLike,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
       BytesLike
     ]
   ): string;
@@ -176,6 +191,10 @@ export interface EarnProtocolInterface extends Interface {
     functionFragment: "calculatePlainScore",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "calculateScoreWithFHE",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "canClaim", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "claimRewards",
@@ -208,6 +227,7 @@ export interface EarnProtocolInterface extends Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "protocolId", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "stake", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "stakeWithEncryptedScore",
     data: BytesLike
@@ -372,6 +392,20 @@ export interface EarnProtocol extends BaseContract {
     "nonpayable"
   >;
 
+  calculateScoreWithFHE: TypedContractMethod<
+    [
+      walletAge: BigNumberish,
+      transactionCount: BigNumberish,
+      ethBalance: BigNumberish,
+      totalGasUsed: BigNumberish,
+      averageTxValue: BigNumberish,
+      uniqueContracts: BigNumberish,
+      inputProof: BytesLike
+    ],
+    [bigint],
+    "nonpayable"
+  >;
+
   canClaim: TypedContractMethod<[user: AddressLike], [boolean], "view">;
 
   claimRewards: TypedContractMethod<
@@ -417,14 +451,16 @@ export interface EarnProtocol extends BaseContract {
 
   protocolId: TypedContractMethod<[], [bigint], "view">;
 
+  stake: TypedContractMethod<[], [void], "payable">;
+
   stakeWithEncryptedScore: TypedContractMethod<
     [
-      walletAge: BytesLike,
-      transactionCount: BytesLike,
-      ethBalance: BytesLike,
-      totalGasUsed: BytesLike,
-      averageTxValue: BytesLike,
-      uniqueContracts: BytesLike,
+      walletAge: BigNumberish,
+      transactionCount: BigNumberish,
+      ethBalance: BigNumberish,
+      totalGasUsed: BigNumberish,
+      averageTxValue: BigNumberish,
+      uniqueContracts: BigNumberish,
       inputProof: BytesLike
     ],
     [void],
@@ -482,6 +518,21 @@ export interface EarnProtocol extends BaseContract {
     "nonpayable"
   >;
   getFunction(
+    nameOrSignature: "calculateScoreWithFHE"
+  ): TypedContractMethod<
+    [
+      walletAge: BigNumberish,
+      transactionCount: BigNumberish,
+      ethBalance: BigNumberish,
+      totalGasUsed: BigNumberish,
+      averageTxValue: BigNumberish,
+      uniqueContracts: BigNumberish,
+      inputProof: BytesLike
+    ],
+    [bigint],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "canClaim"
   ): TypedContractMethod<[user: AddressLike], [boolean], "view">;
   getFunction(
@@ -530,15 +581,18 @@ export interface EarnProtocol extends BaseContract {
     nameOrSignature: "protocolId"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
+    nameOrSignature: "stake"
+  ): TypedContractMethod<[], [void], "payable">;
+  getFunction(
     nameOrSignature: "stakeWithEncryptedScore"
   ): TypedContractMethod<
     [
-      walletAge: BytesLike,
-      transactionCount: BytesLike,
-      ethBalance: BytesLike,
-      totalGasUsed: BytesLike,
-      averageTxValue: BytesLike,
-      uniqueContracts: BytesLike,
+      walletAge: BigNumberish,
+      transactionCount: BigNumberish,
+      ethBalance: BigNumberish,
+      totalGasUsed: BigNumberish,
+      averageTxValue: BigNumberish,
+      uniqueContracts: BigNumberish,
       inputProof: BytesLike
     ],
     [void],

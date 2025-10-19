@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/Users/tahsingulcek/EarnFH/EarnProtocol-FHEVM/contracts/contracts/EarnProtocol.sol": {
-      "lastModificationDate": 1760827499856,
-      "contentHash": "a22b5d855ae0a03e645e04e4d93d7f1b",
+      "lastModificationDate": 1760894750690,
+      "contentHash": "ef3ca9740bea562102f27e98b625bfa9",
       "sourceName": "contracts/EarnProtocol.sol",
       "solcConfig": {
         "version": "0.8.27",
@@ -17,6 +17,7 @@
             "runs": 800
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -49,7 +50,7 @@
       ]
     },
     "/Users/tahsingulcek/EarnFH/EarnProtocol-FHEVM/contracts/fhevmTemp/@fhevm/solidity/config/ZamaConfig.sol": {
-      "lastModificationDate": 1760827511658,
+      "lastModificationDate": 1760893157374,
       "contentHash": "36810e84dfdd27616b5eaf3b31ddc0a9",
       "sourceName": "@fhevm/solidity/config/ZamaConfig.sol",
       "solcConfig": {
@@ -64,6 +65,7 @@
             "runs": 800
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -114,6 +116,7 @@
             "runs": 800
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -164,6 +167,7 @@
             "runs": 800
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -206,6 +210,7 @@
             "runs": 800
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -255,6 +260,7 @@
             "runs": 800
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -297,6 +303,7 @@
             "runs": 800
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [

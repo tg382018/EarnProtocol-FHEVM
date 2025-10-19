@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ethers } from "ethers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +67,7 @@ export default function EarnProtocol() {
     message: contractMessage,
     isProcessing: contractProcessing,
     stakedAmount,
+    lastClaimTime,
     totalEarned,
     hasStaked,
     canClaimNow,
@@ -80,9 +82,13 @@ export default function EarnProtocol() {
   const [userScore, setUserScore] = useState(0);
   const [interestRate, setInterestRate] = useState(0);
   const [dailyReward, setDailyReward] = useState(0);
-  const [lastClaimTime, setLastClaimTime] = useState(0);
+  const [accumulatedRewards, setAccumulatedRewards] = useState(0);
   const [countdown, setCountdown] = useState(0);
   const [isCountingDown, setIsCountingDown] = useState(false);
+  const [stakeCountdown, setStakeCountdown] = useState(0);
+  const [isStakeCountingDown, setIsStakeCountingDown] = useState(false);
+  const [userRejected, setUserRejected] = useState(false);
+  const [stakeSuccess, setStakeSuccess] = useState(false);
 
   // Animation variants
   const containerVariants = {
@@ -123,6 +129,66 @@ export default function EarnProtocol() {
     setCountdown(20);
     setIsCountingDown(true);
   };
+
+  const startStakeCountdown = () => {
+    setStakeCountdown(20);
+    setIsStakeCountingDown(true);
+  };
+
+  // Stake countdown effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isStakeCountingDown && stakeCountdown > 0) {
+      interval = setInterval(() => {
+        setStakeCountdown((prev) => {
+          if (prev <= 1) {
+            setIsStakeCountingDown(false);
+            window.location.reload();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isStakeCountingDown, stakeCountdown]);
+
+  // Update daily reward and accumulated rewards every minute
+  useEffect(() => {
+    console.log("Debug - useEffect triggered:", {
+      stakedAmount: stakedAmount.toString(),
+      interestRate,
+      lastClaimTime: lastClaimTime.toString(),
+      address,
+    });
+
+    if (stakedAmount && stakedAmount > BigInt(0) && interestRate > 0) {
+      const updateRewards = () => {
+        const newDailyReward = calculateDailyReward(stakedAmount, interestRate);
+        console.log("Debug - Setting daily reward:", newDailyReward, "ETH");
+        setDailyReward(newDailyReward);
+
+        // Also update accumulated rewards if we have lastClaimTime
+        if (lastClaimTime && lastClaimTime > BigInt(0)) {
+          const newAccumulatedRewards = calculateAccumulatedRewards(
+            stakedAmount,
+            interestRate,
+            lastClaimTime
+          );
+          setAccumulatedRewards(newAccumulatedRewards);
+          console.log("Accumulated rewards:", newAccumulatedRewards, "ETH");
+        }
+      };
+
+      // Update immediately
+      updateRewards();
+
+      // Update every minute (60000 ms)
+      const interval = setInterval(updateRewards, 60000);
+
+      return () => clearInterval(interval);
+    }
+  }, [stakedAmount, interestRate, lastClaimTime, address]);
 
   const handleAnalyzeWallet = async () => {
     if (!address) {
@@ -171,6 +237,12 @@ export default function EarnProtocol() {
 
         // Use the score from blockchain (always returns a score now)
         const calculatedInterestRate = calculateInterestRate(contractScore);
+        console.log(
+          "Debug - Setting interest rate:",
+          calculatedInterestRate,
+          "for score:",
+          contractScore
+        );
         setUserScore(contractScore);
         setInterestRate(calculatedInterestRate);
         setShowScore(true);
@@ -213,40 +285,30 @@ export default function EarnProtocol() {
     }
 
     setIsStaking(true);
+    setUserRejected(false);
 
     try {
-      if (canStake) {
-        const userData = {
-          walletAge: covalentData.walletAge,
-          transactionCount: covalentData.transactionCount,
-          ethBalance: covalentData.ethBalance,
-          totalGasUsed: covalentData.totalGasUsed,
-          averageTransactionValue: covalentData.averageTransactionValue,
-          uniqueContracts: covalentData.uniqueContracts,
-        };
+      // Always try to stake (contract will handle the transaction)
+      const userData = {
+        walletAge: covalentData.walletAge,
+        transactionCount: covalentData.transactionCount,
+        ethBalance: covalentData.ethBalance,
+        totalGasUsed: covalentData.totalGasUsed,
+        averageTransactionValue: covalentData.averageTransactionValue,
+        uniqueContracts: covalentData.uniqueContracts,
+      };
 
-        await stakeWithEncryptedScore(userData, stakeAmount);
+      // Call stake function - MetaMask popup will appear
+      await stakeWithEncryptedScore(userData, stakeAmount);
 
-        // Update local state
-        setDailyReward((parseFloat(stakeAmount) * interestRate) / 100 / 365);
-        setLastClaimTime(Date.now());
-        // canClaim is now managed by contract
-
-        alert(`Başarıyla ${stakeAmount} ETH stake edildi!`);
-        setStakeAmount("");
-      } else {
-        // Fallback to mock staking
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        setDailyReward((parseFloat(stakeAmount) * interestRate) / 100 / 365);
-        setLastClaimTime(Date.now());
-        // canClaim is now managed by contract
-        alert(`Başarıyla ${stakeAmount} ETH stake edildi!`);
-        setStakeAmount("");
-      }
+      // Transaction approved - start countdown
+      startStakeCountdown();
+      setStakeSuccess(true);
+      setStakeAmount("");
     } catch (error) {
       console.error("Staking failed:", error);
-      alert("Staking işlemi başarısız oldu!");
-    } finally {
+      // User rejected or error
+      setUserRejected(true);
       setIsStaking(false);
     }
   };
@@ -276,6 +338,50 @@ export default function EarnProtocol() {
     } finally {
       setIsClaiming(false);
     }
+  };
+
+  const formatEth = (amount: number | bigint | undefined) => {
+    if (typeof amount === "undefined") return "0.000";
+    if (typeof amount === "bigint") {
+      return parseFloat(ethers.formatEther(amount)).toFixed(6);
+    }
+    return amount.toFixed(6);
+  };
+
+  // Calculate daily reward based on staked amount and interest rate
+  const calculateDailyReward = (stakedAmount: bigint, interestRate: number) => {
+    if (stakedAmount === BigInt(0)) return 0;
+
+    const stakedAmountEth = parseFloat(ethers.formatEther(stakedAmount));
+    const annualRate = interestRate / 100; // Convert percentage to decimal
+    const dailyRate = annualRate / 365; // Convert annual rate to daily rate
+    const dailyReward = stakedAmountEth * dailyRate;
+
+    return dailyReward;
+  };
+
+  // Calculate accumulated rewards based on time passed since last claim
+  const calculateAccumulatedRewards = (
+    stakedAmount: bigint,
+    interestRate: number,
+    lastClaimTime: bigint
+  ) => {
+    if (stakedAmount === BigInt(0) || lastClaimTime === BigInt(0)) return 0;
+
+    const stakedAmountEth = parseFloat(ethers.formatEther(stakedAmount));
+    const annualRate = interestRate / 100; // Convert percentage to decimal
+    const dailyRate = annualRate / 365; // Convert annual rate to daily rate
+    const dailyReward = stakedAmountEth * dailyRate;
+
+    // Calculate time passed since last claim (in seconds)
+    const currentTime = Math.floor(Date.now() / 1000);
+    const timePassed = currentTime - Number(lastClaimTime);
+
+    // Calculate rewards based on time passed
+    const secondsInDay = 24 * 60 * 60; // 86400 seconds
+    const accumulatedRewards = (dailyReward * timePassed) / secondsInDay;
+
+    return Math.max(0, accumulatedRewards); // Don't return negative values
   };
 
   const handleWithdraw = async () => {
@@ -556,122 +662,157 @@ export default function EarnProtocol() {
               </Card>
             </motion.div>
 
-            {/* Staking Card */}
-            <motion.div variants={itemVariants}>
-              <Card className="bg-white/10 backdrop-blur-lg border-white/20">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Coins className="w-6 h-6" />
-                    Stake & Earn
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6 min-h-[400px] flex flex-col justify-center">
-                  {!stakedAmount ? (
-                    <div className="space-y-4">
-                      <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 rounded-lg p-4 border border-green-400/30">
-                        <div className="text-sm text-gray-300">Faiz Oranı</div>
-                        <div className="text-3xl font-bold text-white">
-                          {interestRate}% APY
+            {/* Staking Card - Only show after analysis */}
+            {userScore > 0 && (
+              <motion.div variants={itemVariants}>
+                <Card className="bg-white/10 backdrop-blur-lg border-white/20">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center gap-2">
+                      <Coins className="w-6 h-6" />
+                      Stake & Earn
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6 min-h-[400px] flex flex-col justify-center">
+                    {!stakedAmount ? (
+                      <div className="space-y-4">
+                        <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 rounded-lg p-4 border border-green-400/30">
+                          <div className="text-sm text-gray-300">
+                            Faiz Oranı
+                          </div>
+                          <div className="text-3xl font-bold text-white">
+                            {interestRate}% APY
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            Skorunuza göre belirlendi
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-400">
-                          Skorunuza göre belirlendi
+
+                        <div>
+                          <label className="text-sm text-gray-300 mb-2 block">
+                            Stake Miktarı (ETH)
+                          </label>
+                          <input
+                            type="number"
+                            value={stakeAmount}
+                            onChange={(e) => setStakeAmount(e.target.value)}
+                            placeholder="0.0"
+                            className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
                         </div>
-                      </div>
 
-                      <div>
-                        <label className="text-sm text-gray-300 mb-2 block">
-                          Stake Miktarı (ETH)
-                        </label>
-                        <input
-                          type="number"
-                          value={stakeAmount}
-                          onChange={(e) => setStakeAmount(e.target.value)}
-                          placeholder="0.0"
-                          className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        />
-                      </div>
+                        <Button
+                          onClick={handleStake}
+                          disabled={
+                            !stakeAmount || isStaking || userScore === 0
+                          }
+                          className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white py-3 rounded-full font-semibold"
+                        >
+                          {isStaking ? (
+                            <>
+                              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                              Stake Ediliyor...
+                            </>
+                          ) : userScore === 0 ? (
+                            <>
+                              <TrendingUp className="w-5 h-5 mr-2" />
+                              Önce Skor Hesapla
+                            </>
+                          ) : (
+                            <>
+                              <TrendingUp className="w-5 h-5 mr-2" />
+                              Stake Et
+                            </>
+                          )}
+                        </Button>
 
-                      <Button
-                        onClick={handleStake}
-                        disabled={!stakeAmount || isStaking}
-                        className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white py-3 rounded-full font-semibold"
-                      >
-                        {isStaking ? (
-                          <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            Stake Ediliyor...
-                          </>
-                        ) : (
-                          <>
-                            <TrendingUp className="w-5 h-5 mr-2" />
-                            Stake Et
-                          </>
+                        {/* Stake Countdown */}
+                        {isStakeCountingDown && (
+                          <div className="bg-orange-500/20 text-orange-300 px-4 py-2 rounded-lg text-center border border-orange-400/30">
+                            <div className="flex items-center justify-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>
+                                MetaMask popup açıldı! İşlemi onaylayın...{" "}
+                                {stakeCountdown}s
+                              </span>
+                            </div>
+                          </div>
                         )}
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 rounded-lg p-4 border border-green-400/30">
-                        <div className="text-sm text-gray-300">
-                          Stake Edilen
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 rounded-lg p-4 border border-green-400/30">
+                          <div className="text-sm text-gray-300">
+                            Stake Edilen
+                          </div>
+                          <div className="text-2xl font-bold text-white">
+                            {formatEth(stakedAmount)} ETH
+                          </div>
                         </div>
-                        <div className="text-2xl font-bold text-white">
-                          {stakedAmount} ETH
+
+                        <div className="bg-white/5 rounded-lg p-4">
+                          <div className="text-sm text-gray-300">
+                            Günlük Kazanç
+                          </div>
+                          <div className="text-xl font-bold text-white">
+                            {dailyReward.toFixed(6)} ETH
+                          </div>
+                        </div>
+
+                        {accumulatedRewards > 0 && (
+                          <div className="bg-white/5 rounded-lg p-4">
+                            <div className="text-sm text-gray-300">
+                              Biriken Kazanç
+                            </div>
+                            <div className="text-xl font-bold text-yellow-400">
+                              {accumulatedRewards.toFixed(8)} ETH
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <Button
+                            onClick={handleClaim}
+                            disabled={!canClaim || isClaiming}
+                            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white py-2 rounded-full"
+                          >
+                            {isClaiming ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Claim Ediliyor...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Günlük Claim
+                              </>
+                            )}
+                          </Button>
+
+                          <Button
+                            onClick={handleWithdraw}
+                            disabled={isWithdrawing}
+                            variant="outline"
+                            className="w-full border-red-400 text-red-300 hover:bg-red-500/10 py-2 rounded-full"
+                          >
+                            {isWithdrawing ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Çekiliyor...
+                              </>
+                            ) : (
+                              <>
+                                <AlertCircle className="w-4 h-4 mr-2" />
+                                Tümünü Çek
+                              </>
+                            )}
+                          </Button>
                         </div>
                       </div>
-
-                      <div className="bg-white/5 rounded-lg p-4">
-                        <div className="text-sm text-gray-300">
-                          Günlük Kazanç
-                        </div>
-                        <div className="text-xl font-bold text-white">
-                          {dailyReward.toFixed(6)} ETH
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Button
-                          onClick={handleClaim}
-                          disabled={!canClaim || isClaiming}
-                          className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white py-2 rounded-full"
-                        >
-                          {isClaiming ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Claim Ediliyor...
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Günlük Claim
-                            </>
-                          )}
-                        </Button>
-
-                        <Button
-                          onClick={handleWithdraw}
-                          disabled={isWithdrawing}
-                          variant="outline"
-                          className="w-full border-red-400 text-red-300 hover:bg-red-500/10 py-2 rounded-full"
-                        >
-                          {isWithdrawing ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Çekiliyor...
-                            </>
-                          ) : (
-                            <>
-                              <AlertCircle className="w-4 h-4 mr-2" />
-                              Tümünü Çek
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
           </motion.div>
 
           {/* Features Section */}
@@ -727,6 +868,21 @@ export default function EarnProtocol() {
             </Card>
           </motion.div>
         </div>
+
+        {/* User Rejected Toast */}
+        {userRejected && (
+          <motion.div
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 100 }}
+            className="fixed bottom-4 right-4 bg-red-500/20 text-red-300 px-4 py-3 rounded-lg border border-red-400/30 z-50"
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
+              <span>User rejected transaction</span>
+            </div>
+          </motion.div>
+        )}
       </div>
     </PageTransition>
   );
