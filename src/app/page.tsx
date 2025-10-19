@@ -331,17 +331,7 @@ export default function EarnProtocol() {
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-12"
           >
-            <motion.h1
-              className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent"
-              animate={{
-                backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-              }}
-              transition={{
-                duration: 3,
-                repeat: Infinity,
-                ease: "linear",
-              }}
-            >
+            <motion.h1 className="text-7xl font-bold mb-4 text-white">
               FHEVM Earn Protocol
             </motion.h1>
             <p className="text-xl text-gray-300 mb-6">

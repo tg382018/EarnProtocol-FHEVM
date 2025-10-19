@@ -10,15 +10,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
-import Image from "next/image";
 
 const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const pathname = usePathname();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -29,10 +25,7 @@ const Header = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const navItems = [
-    { name: "Fhevm", path: "/" },
-    { name: "Docs", path: "https://docs.zama.ai/fhevm" },
-  ];
+  const navItems = [];
 
   const onNavItemClick = () => {
     setIsOpen(false);
@@ -48,50 +41,6 @@ const Header = () => {
     >
       <div className="md:px-0 px-5 mx-auto font-telegraf">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex mr-5 md:mr-36 items-center space-x-2">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.3 }}
-              className="w-10 h-10 bg-primary flex items-center justify-center"
-            >
-              <Image
-                src="/assets/zama-logo.png"
-                alt="Zama"
-                width={24}
-                height={24}
-                className="w-6 h-6"
-              />
-            </motion.div>
-          </Link>
-
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-1">
-            {navItems.map((item) => (
-              <Link key={item.path} href={item.path}>
-                <Button
-                  variant={pathname === item.path ? "secondary" : "ghost"}
-                  size="sm"
-                  className="relative hover:bg-[#eeeeee] dark:hover:bg-[#5a5a5a]"
-                >
-                  {pathname === item.path && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute inset-0 bg-secondary"
-                      transition={{
-                        duration: 0.2,
-                        type: "spring",
-                        stiffness: 300,
-                        damping: 30,
-                      }}
-                    />
-                  )}
-                  <span className="relative z-10">{item.name}</span>
-                </Button>
-              </Link>
-            ))}
-          </nav>
-
           <div className="flex items-center gap-2">
             <div className="hidden md:block">
               <ConnectWallet />
@@ -115,24 +64,6 @@ const Header = () => {
                     <SheetTitle></SheetTitle>
                   </SheetHeader>
                   <div className="mt-4 w-full max-w-xs flex flex-col ">
-                    {navItems.map((item) => (
-                      <Link
-                        key={item.path}
-                        href={item.path}
-                        onClick={onNavItemClick}
-                        className="w-full"
-                      >
-                        <div
-                          className={`${
-                            pathname === item.path
-                              ? "bg-secondary text-secondary-foreground "
-                              : " hover:text-accent-foreground"
-                          } w-full text-xl hover:bg-secondary/40 justify-left font-telegraf text-left py-4 px-4 my-2 hover:bg-[#eeeeee] dark:hover:bg-[#5a5a5a]`}
-                        >
-                          {item.name}
-                        </div>
-                      </Link>
-                    ))}
                     <div className="flex mt-8 px-4 flex-col gap-4">
                       <div className="text-sm text-">Connected wallet:</div>
                       <div className="flex justify-left w-full max-w-xs">
