@@ -81,6 +81,8 @@ export default function EarnProtocol() {
   const [interestRate, setInterestRate] = useState(0);
   const [dailyReward, setDailyReward] = useState(0);
   const [lastClaimTime, setLastClaimTime] = useState(0);
+  const [countdown, setCountdown] = useState(0);
+  const [isCountingDown, setIsCountingDown] = useState(false);
 
   // Animation variants
   const containerVariants = {
@@ -96,6 +98,30 @@ export default function EarnProtocol() {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0 },
+  };
+
+  // Countdown effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isCountingDown && countdown > 0) {
+      interval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            setIsCountingDown(false);
+            setIsAnalyzing(false);
+            window.location.reload();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isCountingDown, countdown]);
+
+  const startCountdown = () => {
+    setCountdown(20);
+    setIsCountingDown(true);
   };
 
   const handleAnalyzeWallet = async () => {
@@ -137,6 +163,9 @@ export default function EarnProtocol() {
           averageTransactionValue: covalentData.averageTransactionValue,
           uniqueContracts: covalentData.uniqueContracts,
         };
+
+        // Start countdown when MetaMask popup appears
+        startCountdown();
 
         const contractScore = await contractCalculateScore(userData);
 
@@ -393,7 +422,9 @@ export default function EarnProtocol() {
                         ) : isAnalyzing ? (
                           <>
                             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            FHEVM ile Analiz Ediliyor...
+                            {isCountingDown
+                              ? `Transaction Onaylanıyor... (${countdown}s)`
+                              : "FHEVM ile Analiz Ediliyor..."}
                           </>
                         ) : !address ? (
                           <>
@@ -488,18 +519,25 @@ export default function EarnProtocol() {
                           <h4 className="text-lg font-semibold text-white">
                             Gizli Skorunuz
                           </h4>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowScore(!showScore)}
-                            className="text-white hover:bg-white/10"
-                          >
-                            {showScore ? (
-                              <EyeOff className="w-4 h-4" />
-                            ) : (
-                              <Eye className="w-4 h-4" />
+                          <div className="flex items-center gap-2">
+                            {isCountingDown && (
+                              <div className="bg-orange-500/20 text-orange-300 px-3 py-1 rounded-full text-sm font-medium border border-orange-400/30">
+                                ⏱️ {countdown}s
+                              </div>
                             )}
-                          </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowScore(!showScore)}
+                              className="text-white hover:bg-white/10"
+                            >
+                              {showScore ? (
+                                <EyeOff className="w-4 h-4" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="text-4xl font-bold text-white">
