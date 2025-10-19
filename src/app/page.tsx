@@ -27,6 +27,7 @@ import { useSigner } from "@/hooks/wallet/useSigner";
 import { useFhevm } from "@/providers/FhevmProvider";
 import { useCovalentData } from "@/hooks/useCovalentData";
 import { useFHEVMScoring } from "@/hooks/useFHEVMScoring";
+import { useEarnProtocol } from "@/hooks/useEarnProtocol";
 import WalletNotConnected from "@/components/wallet/WalletNotConnected";
 import PageTransition from "@/components/layout/PageTransition";
 
@@ -51,6 +52,25 @@ export default function EarnProtocol() {
     resetScore,
   } = useFHEVMScoring();
 
+  // Earn Protocol hook
+  const {
+    canCalculateScore,
+    canStake,
+    canClaim,
+    canWithdraw,
+    calculateEncryptedScore: contractCalculateScore,
+    checkUserScoreStatus,
+    stakeWithEncryptedScore,
+    claimRewards,
+    withdraw,
+    message: contractMessage,
+    isProcessing: contractProcessing,
+    stakedAmount,
+    totalEarned,
+    hasStaked,
+    canClaimNow,
+  } = useEarnProtocol();
+
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isStaking, setIsStaking] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
@@ -59,10 +79,8 @@ export default function EarnProtocol() {
   const [stakeAmount, setStakeAmount] = useState("");
   const [userScore, setUserScore] = useState(0);
   const [interestRate, setInterestRate] = useState(0);
-  const [stakedAmount, setStakedAmount] = useState(0);
   const [dailyReward, setDailyReward] = useState(0);
   const [lastClaimTime, setLastClaimTime] = useState(0);
-  const [canClaim, setCanClaim] = useState(false);
 
   // Animation variants
   const containerVariants = {
@@ -94,22 +112,53 @@ export default function EarnProtocol() {
     setIsAnalyzing(true);
 
     try {
-      // Use FHEVM to calculate encrypted score
-      const contractAddress = "0x1234567890123456789012345678901234567890"; // Mock contract address
-      const { publicScore: calculatedScore } = await calculateEncryptedScore(
-        covalentData,
-        contractAddress,
-        address
-      );
+      // First check if user has already calculated score
+      const { hasCalculated, score: existingScore } =
+        await checkUserScoreStatus(address);
 
-      const calculatedInterestRate = calculateInterestRate(calculatedScore);
+      if (hasCalculated && existingScore > 0) {
+        // User already has a score, use it without transaction
+        console.log("User already has calculated score:", existingScore);
+        const calculatedInterestRate = calculateInterestRate(existingScore);
+        setUserScore(existingScore);
+        setInterestRate(calculatedInterestRate);
+        setShowScore(true);
+        setIsAnalyzing(false);
+        return;
+      }
 
-      setUserScore(calculatedScore);
-      setInterestRate(calculatedInterestRate);
-      setShowScore(true);
+      // User doesn't have a score, calculate it
+      if (canCalculateScore) {
+        const userData = {
+          walletAge: covalentData.walletAge,
+          transactionCount: covalentData.transactionCount,
+          ethBalance: covalentData.ethBalance,
+          totalGasUsed: covalentData.totalGasUsed,
+          averageTransactionValue: covalentData.averageTransactionValue,
+          uniqueContracts: covalentData.uniqueContracts,
+        };
+
+        const contractScore = await contractCalculateScore(userData);
+
+        // Use the score from blockchain (always returns a score now)
+        const calculatedInterestRate = calculateInterestRate(contractScore);
+        setUserScore(contractScore);
+        setInterestRate(calculatedInterestRate);
+        setShowScore(true);
+      } else {
+        // Fallback to mock scoring
+        const { publicScore: calculatedScore } = await calculateEncryptedScore(
+          covalentData,
+          "0x1234567890123456789012345678901234567890",
+          address
+        );
+        const calculatedInterestRate = calculateInterestRate(calculatedScore);
+        setUserScore(calculatedScore);
+        setInterestRate(calculatedInterestRate);
+        setShowScore(true);
+      }
     } catch (error) {
       console.error("Analysis failed:", error);
-      // Fallback to mock data
       setUserScore(850);
       setInterestRate(12.5);
       setShowScore(true);
@@ -119,41 +168,118 @@ export default function EarnProtocol() {
   };
 
   const handleStake = async () => {
-    if (!stakeAmount || parseFloat(stakeAmount) <= 0) return;
+    if (!address) {
+      alert("Lütfen önce cüzdanınızı bağlayın!");
+      return;
+    }
+
+    if (!stakeAmount || parseFloat(stakeAmount) <= 0) {
+      alert("Lütfen geçerli bir stake miktarı girin!");
+      return;
+    }
+
+    if (!covalentData) {
+      alert("Covalent verileri henüz yüklenmedi. Lütfen bekleyin...");
+      return;
+    }
 
     setIsStaking(true);
 
-    // Simulate staking process
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      if (canStake) {
+        const userData = {
+          walletAge: covalentData.walletAge,
+          transactionCount: covalentData.transactionCount,
+          ethBalance: covalentData.ethBalance,
+          totalGasUsed: covalentData.totalGasUsed,
+          averageTransactionValue: covalentData.averageTransactionValue,
+          uniqueContracts: covalentData.uniqueContracts,
+        };
 
-    setStakedAmount(parseFloat(stakeAmount));
-    setDailyReward((parseFloat(stakeAmount) * interestRate) / 100 / 365);
-    setLastClaimTime(Date.now());
-    setCanClaim(true);
-    setIsStaking(false);
-    setStakeAmount("");
+        await stakeWithEncryptedScore(userData, stakeAmount);
+
+        // Update local state
+        setDailyReward((parseFloat(stakeAmount) * interestRate) / 100 / 365);
+        setLastClaimTime(Date.now());
+        // canClaim is now managed by contract
+
+        alert(`Başarıyla ${stakeAmount} ETH stake edildi!`);
+        setStakeAmount("");
+      } else {
+        // Fallback to mock staking
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        setDailyReward((parseFloat(stakeAmount) * interestRate) / 100 / 365);
+        setLastClaimTime(Date.now());
+        // canClaim is now managed by contract
+        alert(`Başarıyla ${stakeAmount} ETH stake edildi!`);
+        setStakeAmount("");
+      }
+    } catch (error) {
+      console.error("Staking failed:", error);
+      alert("Staking işlemi başarısız oldu!");
+    } finally {
+      setIsStaking(false);
+    }
   };
 
   const handleClaim = async () => {
+    if (!address) {
+      alert("Lütfen önce cüzdanınızı bağlayın!");
+      return;
+    }
+
     setIsClaiming(true);
 
-    // Simulate claim process
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      if (canClaim && userScore > 0) {
+        await claimRewards(userScore);
+        alert("Rewards başarıyla claim edildi!");
+      } else {
+        // Fallback to mock claiming
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        alert("Rewards başarıyla claim edildi!");
+      }
 
-    setLastClaimTime(Date.now());
-    setIsClaiming(false);
+      setLastClaimTime(Date.now());
+    } catch (error) {
+      console.error("Claim failed:", error);
+      alert("Claim işlemi başarısız oldu!");
+    } finally {
+      setIsClaiming(false);
+    }
   };
 
   const handleWithdraw = async () => {
+    if (!address) {
+      alert("Lütfen önce cüzdanınızı bağlayın!");
+      return;
+    }
+
     setIsWithdrawing(true);
 
-    // Simulate withdrawal process
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      if (canWithdraw) {
+        await withdraw();
+        alert("Başarıyla withdraw edildi!");
 
-    setStakedAmount(0);
-    setDailyReward(0);
-    setCanClaim(false);
-    setIsWithdrawing(false);
+        // Reset local state
+        setDailyReward(0);
+        // canClaim is now managed by contract
+      } else {
+        // Fallback to mock withdrawal
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        alert("Başarıyla withdraw edildi!");
+
+        // Reset local state
+        setDailyReward(0);
+        // canClaim is now managed by contract
+      }
+    } catch (error) {
+      console.error("Withdrawal failed:", error);
+      alert("Withdrawal işlemi başarısız oldu!");
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
   if (!isConnected) {
@@ -255,9 +381,7 @@ export default function EarnProtocol() {
                       <Button
                         onClick={handleAnalyzeWallet}
                         disabled={
-                          isAnalyzing ||
-                          instanceStatus !== "ready" ||
-                          covalentLoading
+                          isAnalyzing || covalentLoading || contractProcessing
                         }
                         className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-3 rounded-full font-semibold"
                       >
@@ -275,6 +399,11 @@ export default function EarnProtocol() {
                           <>
                             <Wallet className="w-5 h-5 mr-2" />
                             Önce Cüzdan Bağlayın
+                          </>
+                        ) : userScore > 0 ? (
+                          <>
+                            <CheckCircle className="w-5 h-5 mr-2" />
+                            Rapor Hazır
                           </>
                         ) : (
                           <>
@@ -374,7 +503,7 @@ export default function EarnProtocol() {
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="text-4xl font-bold text-white">
-                            {showScore ? userScore : "••••"}
+                            {showScore && userScore > 0 ? userScore : "••••"}
                           </div>
                           <div className="flex-1">
                             <Progress
@@ -382,7 +511,9 @@ export default function EarnProtocol() {
                               className="h-3"
                             />
                             <div className="text-sm text-gray-300 mt-2">
-                              {showScore ? `${userScore}/1000` : "••••/1000"}
+                              {userScore > 0
+                                ? "✅ Blockchain'den hesaplanan skor"
+                                : "Skorunuz blockchain'de hesaplanacak"}
                             </div>
                           </div>
                         </div>
